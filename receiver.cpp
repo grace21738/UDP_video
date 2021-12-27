@@ -31,6 +31,18 @@ typedef struct{
     char data[1000];
 } segment;
 
+void print_debug_message( segment &message ){
+    cout <<"============================================"<<endl;
+    cout << "message.head.length: " << message.head.length << endl;
+    cout << "message.head.seqNumber: " << message.head.seqNumber << endl;
+    cout << "message.head.ackNumber: " << message.head.ackNumber << endl;
+    cout << "message.head.fin: " << message.head.fin << endl;
+    cout << "message.head.syn: " << message.head.syn << endl;
+    cout << "message.head.ack: " << message.head.syn << endl;
+    cout << "message.data: " << message.data << endl;
+    cout <<"============================================"<<endl;
+}
+
 int main(int argc, char *argv[])
 {
 
@@ -87,7 +99,8 @@ int main(int argc, char *argv[])
                 message.head.ackNumber = message.head.seqNumber;
                 success_ackNum = message.head.seqNumber;
                 message.head.ack = 1;
-                expect_seqNumber += 1;
+                if( message.head.fin!=1 ) expect_seqNumber += 1;
+                //print_debug_message( message );
                 if( message.head.fin == 1 )
                     cout << "recv\t" <<"fin"<<endl;
                 else
@@ -101,13 +114,17 @@ int main(int argc, char *argv[])
                 cout << "drop\t" <<"data\t" <<"#"<<message.head.seqNumber<<endl;
             }
             if( message.head.fin == 1 )
-                cout << "send\t" <<"ack\t" <<"#"<<message.head.ackNumber<<endl;
-            else
                 cout << "send\t" <<"finack\t"<<endl;
+            else
+                cout << "send\t" <<"ack\t" <<"#"<<message.head.ackNumber<<endl;
+
             cout << "You got a message (" <<message.data<<")  from "<< inet_ntoa(agent.sin_addr)<<endl; /* prints client's IP */
             sendto(sockfd,&message,num,0,(struct sockaddr *)&agent,sin_size);
         }
-        if( message.head.fin == 1 )break; 
+        if( message.head.fin==1 && expect_seqNumber==message.head.seqNumber ){
+            //cout<<"expect_ack_num <= message.head.ackNumber"<<expect_seqNumber <<" "<<message.head.seqNumber <<endl;
+            break;
+        }
     }
     
     close(sockfd); /* close listenfd */ 

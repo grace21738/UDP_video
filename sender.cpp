@@ -66,9 +66,9 @@ void set_packet( segment &message, long long int data, int seqNum ,bool isLast){
 	sprintf(message.data,"%lld",data);
 	message.head.length = strlen(message.data);
 	message.head.seqNumber = seqNum;
-	message.head.fin = 0;
 	message.head.ack = 0;
 	if(isLast) message.head.fin = 1;
+	else message.head.fin = 0;
 }
 
 void print_debug_message( segment &message ){
@@ -124,7 +124,7 @@ void *timer( void *main_timer_flag){
 	  //iterations++;
 	} while ( msec < trigger );
 
-	printf("Time taken %lld seconds %lld milliseconds\n",msec/1000, msec%1000);
+	//printf("Time taken %lld seconds %lld milliseconds\n",msec/1000, msec%1000);
 	time_flag->isTimeOut = true;
 	pthread_exit(NULL); 
 }
@@ -248,16 +248,16 @@ int main(int argc, char *argv[])
 	    			pthread_tryjoin_np(t,NULL);
 	   			}
 
-	   			if( message.head.fin != 1 ){
+	   			if( all_message[j].head.fin != 1 ){
 		   			if( time_flag->isTimeOut == false )
 		   				cout << "send\t" <<"data\t" <<"#"<<all_message[j].head.seqNumber<<",\t"<<"winSize = "<<window_size<<endl;
-		   			else if
+		   			else 
 		   				cout << "resnd\t" <<"data\t" <<"#"<<all_message[j].head.seqNumber<<",\t"<<"winSize = "<<window_size<<endl;
 		   		}
 		   		else{
 		   			if( time_flag->isTimeOut == false )
 		   				cout << "send\t" <<"fin\t" <<endl;
-		   			else if
+		   			else 
 		   				cout << "resnd\t" <<"fin\t" <<endl;
 
 		   		}
@@ -286,7 +286,10 @@ int main(int argc, char *argv[])
 	            perror("recvfrom() error\n");
 	            exit(1);
 	        }
-	        cout << "recv\t" <<"ack\t" <<"#"<<message.head.ackNumber<<endl;
+	        if( message.head.fin == 1 )
+	        	cout << "recv\t" <<"finack\t" <<endl;
+	        else
+	        	cout << "recv\t" <<"ack\t" <<"#"<<message.head.ackNumber<<endl;
 	    }
 	//========Settings of recvfrom===========
        
@@ -298,7 +301,7 @@ int main(int argc, char *argv[])
         	it = all_message.begin();
         	all_message.erase(it);
         	//Change expected ack num
-        	expect_ack_num += 1;
+        	if( message.head.fin != 1 )expect_ack_num += 1;
         	ack_buf_size += 1;
         	right_ack = true;
         	if( seqNum < packet_tol ) push_packet(all_message,seqNum,tmp,window_size,packet_tol);
@@ -319,7 +322,10 @@ int main(int argc, char *argv[])
         }
        
        //FINISHED
-        if( message.head.fin==1 ) break;
+        if( message.head.fin==1 && expect_ack_num == message.head.ackNumber){
+        	//cout<<"expect_ack_num <= message.head.ackNumber"<<expect_ack_num <<" "<<message.head.ackNumber <<endl;
+        	break;
+        }
     }
     //========Receiver get expected packet=========
 
