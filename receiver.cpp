@@ -10,8 +10,10 @@
 #include <string>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include "opencv2/opencv.hpp"
 
 using namespace std;
+using namespace cv;
 
 #define PORT 8888 /* Port that will be opened */
 #define A_PORT 1234
@@ -88,12 +90,15 @@ int main(int argc, char *argv[])
     sin_size=sizeof(struct sockaddr_in);
     int success_ackNum = 0;
 
+    int info_num = 0;
     long long int frame_tol;
     long long int frame_buf;
     long long int buf_num = 0;/*Caculate one frame size buf_num==frame_buf*/
     long long int frame_num = 0;/*Caculate total frame frame_num==frame_amt*/
     long long int height;
     long long int width;
+
+    Mat frame;
 
     while (1) {
         num = recvfrom(sockfd,&message,sizeof(message),0,(struct sockaddr *)&agent,&sin_size);
@@ -114,14 +119,20 @@ int main(int argc, char *argv[])
                 else
                     cout << "recv\t" <<"data\t" <<"#"<<message.head.seqNumber<<endl;
                 
-                if( message.head.seqNumber == 1 )
-                    frame_tol = atoll(message.data);
-                else if( message.head.seqNumber == 2 )
-                    width = atoll(message.data);
-                else if( message.head.seqNumber == 3 )
-                    height = atoll(message.data);
-                else if( message.head.seqNumber == 4 )
-                    frame_buf = atoll(message.data);
+                if( message.head.seqNumber == 1 ){
+                    char *token;
+                    token = strtok(message.data," ");
+                    while( token != NULL ){
+                        if( info_num == 0 ) frame_tol = atoll(token);
+                        if( info_num == 1 ) width = atoll(token);
+                        if( info_num == 2 ) height = atoll(token);
+                        if( info_num == 3 ) frame_buf = atoll(token);
+                        info_num ++;
+                        token = strtok(NULL, " ");
+                    }
+                    frame = Mat::zeros(height, width, CV_8UC3);
+                    if(!frame.isContinuous()) frame = frame.clone();
+                }
             }
 
             //lost packet 
@@ -130,10 +141,10 @@ int main(int argc, char *argv[])
                 message.head.ack = 1;
                 cout << "drop\t" <<"data\t" <<"#"<<message.head.seqNumber<<endl;
             }
-            if( message.head.fin == 1 )
-                cout << "send\t" <<"finack\t"<<endl;
-            else
-                cout << "send\t" <<"ack\t" <<"#"<<message.head.ackNumber<<endl;
+
+            if( message.head.fin == 1 ) cout << "send\t" <<"finack\t"<<endl;
+            else cout << "send\t" <<"ack\t" <<"#"<<message.head.ackNumber<<endl;
+            if( message.head.seqNumber == 1 )cout << "flush"<<endl;
 
             //cout << "You got a message (" <<message.data<<")  from "<< inet_ntoa(agent.sin_addr)<<endl; /* prints client's IP */
             sendto(sockfd,&message,num,0,(struct sockaddr *)&agent,sin_size);

@@ -46,6 +46,7 @@ void setIP(char *dst, char *src){
 }
 
 int main(int argc, char* argv[]){
+    bool isFin = false;
     int agentsocket, portNum, nBytes;
     float loss_rate;
     segment s_tmp;
@@ -136,6 +137,7 @@ int main(int argc, char* argv[]){
                     index = s_tmp.head.seqNumber;
                     if(rand() % 100 < 100 * loss_rate){
                         drop_data++;
+                        isFin = true;
                         printf("drop	data	#%d,	loss rate = %.4f\n", index, (float)drop_data/total_data);
                     } else{ 
                         printf("get	data	#%d\n",index);

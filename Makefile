@@ -19,7 +19,7 @@ all: sender receiver agent opencv
 sender: $(SENDER)
 	$(CXX) $(SENDER) $(INCLUDE_OPENCV) $(LINK_PTHREAD) -o $(SEN)  
 receiver: $(RECEIVER)
-	$(CXX) $(RECEIVER) $(INCLUDE_OPENCV) -Wall -o $(REC)
+	$(CXX) $(RECEIVER) $(INCLUDE_OPENCV) $(LINK_PTHREAD) -Wall -o $(REC)
 agent: $(AGENT)
 	$(CXX) $(AGENT) $(INCLUDE_OPENCV) -o $(AGE)  
 opencv: $(OPEN_CV)

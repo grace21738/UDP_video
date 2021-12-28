@@ -58,9 +58,9 @@ void init_message(  segment &message){
 	
 }
 
-void set_packet( segment &message, long long int data, int seqNum ,bool isLast){
+void set_packet( segment &message, char data[MAXDATASIZE], int seqNum ,bool isLast){
 	memset( message.data, '\0', sizeof(char)*MAXDATASIZE );
-	sprintf(message.data,"%lld",data);
+	sprintf(message.data,"%s",data);
 	message.head.length = strlen(message.data);
 	message.head.seqNumber = seqNum;
 	message.head.ack = 0;
@@ -85,7 +85,7 @@ void print_debug_vector(vector<segment> v){
 		print_debug_message( v[i] );
 }
 
-void push_packet(vector<segment> &all_message,int &seqNum,long long int &data,int window_size){
+void push_packet(vector<segment> &all_message,int &seqNum,char data[MAXDATASIZE],int window_size){
 
 	segment message;
 	for( int k=all_message.size(); k<window_size ; ++k ){
@@ -149,10 +149,10 @@ int main(int argc, char *argv[])
     int window_size = 1;
     vector<segment> all_message;
     char file_name[MAXDATASIZE] = "video.mpg";
-    char file_path[2*MAXDATASIZE]; 
+    char file_path[2*MAXDATASIZE];
+    char packet[MAXDATASIZE];
     segment message;
     char agent_ip[50];
-    struct hostent *he; /* structure that will get information about remote host */
     struct sockaddr_in server,agent; /* server's address information */
     int expect_ack_num =  0;
     int seqNum = 0;
@@ -215,35 +215,30 @@ int main(int argc, char *argv[])
 
     // Get the size of a frame in bytes
     Mat frame;
-    int information_size = 4;
-    long long int information[4] = {};
-    information[0] = cap.get(CV_CAP_PROP_FRAME_COUNT);
-    information[1] = cap.get(CV_CAP_PROP_FRAME_WIDTH);
-    information[2] = cap.get(CV_CAP_PROP_FRAME_HEIGHT);
-    frame = Mat::zeros(information[2], information[1], CV_8UC3);
-    // Ensure the memory is continuous (for efficiency issue.)
+    long long int frame_amt = cap.get(CV_CAP_PROP_FRAME_COUNT);
+    int width = cap.get(CV_CAP_PROP_FRAME_WIDTH);
+    int height= cap.get(CV_CAP_PROP_FRAME_HEIGHT);
+    frame = Mat::zeros(width, height, CV_8UC3);
     if(!frame.isContinuous()) frame = frame.clone();
 	long long frame_size = frame.total() * frame.elemSize();
-
-    long long int frame_buf = ceil(double(frame_size)/double(MAXDATASIZE));
-    information[3] = frame_buf;
+	long long int frame_buf = ceil(double(frame_size)/double(MAXDATASIZE));
+    //information[3] = frame_buf;
     long long int buf_num = 0;/*Caculate one frame size buf_num==frame_buf*/
-    long long int packet_tol = information_size/*frame_amt*frame_buf+4/*information of video+1/*fin*/;
+    long long int packet_tol = 1/*frame_amt*frame_buf+4/*information of video+1/*fin*/;
     long long int frame_num = 0;/*Caculate total frame frame_num==frame_amt*/
     long long int packet_num = 0;
-    cout << "frame_buf: "<<frame_buf<<endl;
  
     //Set timer
 	pthread_t t;
 	init_timer_flag( time_flag);
-    long long int tmp = 100;
-    for( int k=0; k<information_size ; ++k ){
-    	seqNum += 1;
-    	cout<< "information[j]: "<<information[k]<<endl;
-    	set_packet( message, information[k], seqNum, false );
-    	all_message.push_back(message);
-    }
+	
+
+    sprintf(packet,"%lld %d %d %lld",frame_amt,width,height,frame_buf);
+    seqNum += 1;
+	set_packet( message, packet, seqNum, false );
+	all_message.push_back(message);
     expect_ack_num = all_message[0].head.seqNumber;
+	
 	//==========LOOP===================
     while(1) {
 
@@ -308,7 +303,7 @@ int main(int argc, char *argv[])
         	//Change expected ack num
         	if( !isFinish && message.head.fin != 1 )expect_ack_num += 1;
         	ack_buf_size += 1;  right_ack = true;
-        	if( seqNum < packet_tol ) push_packet(all_message,seqNum,tmp,window_size);
+        	if( seqNum < packet_tol ) push_packet(all_message,seqNum,packet,window_size);
         	
         	//Reset Timer
         	time_flag -> stop_timer = true;
@@ -324,7 +319,7 @@ int main(int argc, char *argv[])
         	if( window_size>threshold ) window_size += 1;
         	else window_size *= 2;
         	ack_buf_size = 0;
-        	if( seqNum < packet_tol ) push_packet(all_message,seqNum,tmp,window_size);
+        	if( seqNum < packet_tol ) push_packet(all_message,seqNum,packet,window_size);
         }
 
         //FINISHED Need set finish
