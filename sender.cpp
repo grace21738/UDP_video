@@ -12,10 +12,7 @@
 #include <netdb.h> /* netbd.h is needed for struct hostent =) */
 #include <arpa/inet.h>
 #include <iostream>
-#include <opencv2/core/mat.hpp>
 #include "opencv2/opencv.hpp"
-#include <opencv2/core/types_c.h>
-#include <opencv/cv.h>
 #include <pthread.h>
 #include <fcntl.h>
 #include<unistd.h> 
@@ -88,20 +85,14 @@ void print_debug_vector(vector<segment> v){
 		print_debug_message( v[i] );
 }
 
-void push_packet(vector<segment> &all_message,int &seqNum,long long int &data,int window_size,long long int packet_tol){
+void push_packet(vector<segment> &all_message,int &seqNum,long long int &data,int window_size){
 
 	segment message;
 	for( int k=all_message.size(); k<window_size ; ++k ){
     	seqNum += 1;
-    	if( seqNum == packet_tol ) 
-    		set_packet( message, data, seqNum, true );
-    	else 
-    		set_packet( message, data, seqNum, false );
-    	data += 1;
+    	set_packet( message, data, seqNum, false );
     	all_message.push_back(message);
     }
-
-
 
 }
 
@@ -135,6 +126,22 @@ void init_timer_flag( Timer_flag *time_flag){
 	time_flag->isTimeOut = false;
 }
 
+void print_send_message( int seqNumber,bool isFinish,  bool isTimeOut,int window_size){
+	if( ! isFinish ){
+		if( isTimeOut == false )
+			cout << "send\t" <<"data\t" <<"#"<<seqNumber<<",\t"<<"winSize = "<<window_size<<endl;
+		else 
+			cout << "resnd\t" <<"data\t" <<"#"<<seqNumber<<",\t"<<"winSize = "<<window_size<<endl;
+	}
+	else{
+		if( isTimeOut == false )
+			cout << "send\t" <<"fin\t" <<endl;
+		else 
+			cout << "resnd\t" <<"fin\t" <<endl;
+
+	}
+}
+
 int main(int argc, char *argv[])
 {
     
@@ -152,6 +159,7 @@ int main(int argc, char *argv[])
     int threshold = 2;
     int ack_buf_size = 0;
     bool right_ack = true;
+    bool isFinish = false;
 
     Timer_flag *time_flag;
     time_flag = new Timer_flag();
@@ -197,39 +205,49 @@ int main(int argc, char *argv[])
     init_message(message);
  
     sprintf(file_path,"./%s",file_name);
-
-//=========VIDEO SENDING=============
+//=====================================================
+    //
+//=========VIDEO SENDING===============================
     VideoCapture cap(file_path); // open the default camera
     if( !cap.isOpened() ){
         cout << "Read video Failed." << endl;
     }
-    Mat frame;
-    long long int frame_num = cap.get(CV_CAP_PROP_FRAME_COUNT);
-    long long int packet_tol = 11;
-    //give frame_num -> frame spilt to packets;
-/*
-    vector<uchar> data_encode;
-    cap.read(frame);
-    for( int i=0; i<frame_num-1; ++i ){
-    	cap.read(frame);
-    	imshow("video_test",frame);
-        waitKey(10);
-    }
-    destroyWindow("video_test");
-    cap.release();
 
-  */ 
+    // Get the size of a frame in bytes
+    Mat frame;
+    int information_size = 4;
+    long long int information[4] = {};
+    information[0] = cap.get(CV_CAP_PROP_FRAME_COUNT);
+    information[1] = cap.get(CV_CAP_PROP_FRAME_WIDTH);
+    information[2] = cap.get(CV_CAP_PROP_FRAME_HEIGHT);
+    frame = Mat::zeros(information[2], information[1], CV_8UC3);
+    // Ensure the memory is continuous (for efficiency issue.)
+    if(!frame.isContinuous()) frame = frame.clone();
+	long long frame_size = frame.total() * frame.elemSize();
+
+    long long int frame_buf = ceil(double(frame_size)/double(MAXDATASIZE));
+    information[3] = frame_buf;
+    long long int buf_num = 0;/*Caculate one frame size buf_num==frame_buf*/
+    long long int packet_tol = information_size/*frame_amt*frame_buf+4/*information of video+1/*fin*/;
+    long long int frame_num = 0;/*Caculate total frame frame_num==frame_amt*/
+    long long int packet_num = 0;
+    cout << "frame_buf: "<<frame_buf<<endl;
+ 
     //Set timer
 	pthread_t t;
 	init_timer_flag( time_flag);
     long long int tmp = 100;
-    push_packet(all_message,seqNum,tmp,window_size,packet_tol);
+    for( int k=0; k<information_size ; ++k ){
+    	seqNum += 1;
+    	cout<< "information[j]: "<<information[k]<<endl;
+    	set_packet( message, information[k], seqNum, false );
+    	all_message.push_back(message);
+    }
     expect_ack_num = all_message[0].head.seqNumber;
-	frame_num = 100;
 	//==========LOOP===================
     while(1) {
 
-   	//++++++++++++RETRANSMIT+++++++++++++++++
+   	//++++++++++++Transmit and RETRANSMIT+++++++++++++++++
    		if( time_flag->isTimeOut == true || (ack_buf_size == 0 && right_ack == true)){
    			//TIME OUT CHANGE WINDOW SIZE
    			if( time_flag->isTimeOut == true  ){
@@ -247,26 +265,13 @@ int main(int argc, char *argv[])
 	   				pthread_create(&t, NULL, timer, time_flag);
 	    			pthread_tryjoin_np(t,NULL);
 	   			}
-
-	   			if( all_message[j].head.fin != 1 ){
-		   			if( time_flag->isTimeOut == false )
-		   				cout << "send\t" <<"data\t" <<"#"<<all_message[j].head.seqNumber<<",\t"<<"winSize = "<<window_size<<endl;
-		   			else 
-		   				cout << "resnd\t" <<"data\t" <<"#"<<all_message[j].head.seqNumber<<",\t"<<"winSize = "<<window_size<<endl;
-		   		}
-		   		else{
-		   			if( time_flag->isTimeOut == false )
-		   				cout << "send\t" <<"fin\t" <<endl;
-		   			else 
-		   				cout << "resnd\t" <<"fin\t" <<endl;
-
-		   		}
+	   			print_send_message( all_message[j].head.seqNumber,isFinish,  time_flag->isTimeOut,window_size);
 	        	sendto(sockfd,&all_message[j],sizeof(all_message[j]),0,(struct sockaddr *)&agent,len);
 	        }
 	        right_ack = false;
 	        time_flag -> isTimeOut = false;
 	    }
-	//===========RETRANSMIT==============
+	//===========Transmit and RETRANSMIT==============
 	//****Settings of recvfrom****
 	  	fd_set readfds;
     	fcntl(sockfd,F_SETFL, O_NONBLOCK);
@@ -301,15 +306,17 @@ int main(int argc, char *argv[])
         	it = all_message.begin();
         	all_message.erase(it);
         	//Change expected ack num
-        	if( message.head.fin != 1 )expect_ack_num += 1;
-        	ack_buf_size += 1;
-        	right_ack = true;
-        	if( seqNum < packet_tol ) push_packet(all_message,seqNum,tmp,window_size,packet_tol);
+        	if( !isFinish && message.head.fin != 1 )expect_ack_num += 1;
+        	ack_buf_size += 1;  right_ack = true;
+        	if( seqNum < packet_tol ) push_packet(all_message,seqNum,tmp,window_size);
+        	
         	//Reset Timer
         	time_flag -> stop_timer = true;
         	pthread_create(&t, NULL, timer, time_flag);
     		pthread_tryjoin_np(t,NULL);
+
         }
+    //========Receiver get expected packet=========
 
         //Whether set high window size
         if( window_size == ack_buf_size ){
@@ -317,17 +324,20 @@ int main(int argc, char *argv[])
         	if( window_size>threshold ) window_size += 1;
         	else window_size *= 2;
         	ack_buf_size = 0;
-        	//Push new packet in all_message
-        	if( seqNum < packet_tol ) push_packet(all_message,seqNum,tmp,window_size,packet_tol);
+        	if( seqNum < packet_tol ) push_packet(all_message,seqNum,tmp,window_size);
+        }
+
+        //FINISHED Need set finish
+        if( packet_tol == message.head.ackNumber){
+        	isFinish = true; seqNum += 1; ack_buf_size = 0;
+	        set_packet( message, 0, seqNum ,true);
+	        all_message.push_back(message);
         }
        
-       //FINISHED
-        if( message.head.fin==1 && expect_ack_num == message.head.ackNumber){
-        	//cout<<"expect_ack_num <= message.head.ackNumber"<<expect_ack_num <<" "<<message.head.ackNumber <<endl;
-        	break;
-        }
+
+        if( isFinish  &&  expect_ack_num == message.head.ackNumber) break;
     }
-    //========Receiver get expected packet=========
+    
 
     close(sockfd); /* close fd */
 }

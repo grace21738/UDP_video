@@ -87,6 +87,14 @@ int main(int argc, char *argv[])
     
     sin_size=sizeof(struct sockaddr_in);
     int success_ackNum = 0;
+
+    long long int frame_tol;
+    long long int frame_buf;
+    long long int buf_num = 0;/*Caculate one frame size buf_num==frame_buf*/
+    long long int frame_num = 0;/*Caculate total frame frame_num==frame_amt*/
+    long long int height;
+    long long int width;
+
     while (1) {
         num = recvfrom(sockfd,&message,sizeof(message),0,(struct sockaddr *)&agent,&sin_size);
         if (num < 0){
@@ -105,6 +113,15 @@ int main(int argc, char *argv[])
                     cout << "recv\t" <<"fin"<<endl;
                 else
                     cout << "recv\t" <<"data\t" <<"#"<<message.head.seqNumber<<endl;
+                
+                if( message.head.seqNumber == 1 )
+                    frame_tol = atoll(message.data);
+                else if( message.head.seqNumber == 2 )
+                    width = atoll(message.data);
+                else if( message.head.seqNumber == 3 )
+                    height = atoll(message.data);
+                else if( message.head.seqNumber == 4 )
+                    frame_buf = atoll(message.data);
             }
 
             //lost packet 
@@ -118,14 +135,18 @@ int main(int argc, char *argv[])
             else
                 cout << "send\t" <<"ack\t" <<"#"<<message.head.ackNumber<<endl;
 
-            cout << "You got a message (" <<message.data<<")  from "<< inet_ntoa(agent.sin_addr)<<endl; /* prints client's IP */
+            //cout << "You got a message (" <<message.data<<")  from "<< inet_ntoa(agent.sin_addr)<<endl; /* prints client's IP */
             sendto(sockfd,&message,num,0,(struct sockaddr *)&agent,sin_size);
         }
         if( message.head.fin==1 && expect_seqNumber==message.head.seqNumber ){
             //cout<<"expect_ack_num <= message.head.ackNumber"<<expect_seqNumber <<" "<<message.head.seqNumber <<endl;
             break;
         }
+
     }
-    
+    cout<< "Hole frame amt: "<<frame_tol<<endl;
+    cout<< "Width: "<<width<<endl;
+    cout<< "Height: "<<height<<endl;
+    cout<< "One frame packet num: "<<frame_buf<<endl;
     close(sockfd); /* close listenfd */ 
 }

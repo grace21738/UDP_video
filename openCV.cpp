@@ -6,7 +6,7 @@ using namespace cv;
 
 int main(int argc, char *argv[]){
     Mat server_img,client_img;
-    VideoCapture cap("./p1f.mpg");
+    VideoCapture cap("./video.mpg");
 
     
     // Get the resolution of the video
@@ -36,7 +36,7 @@ int main(int argc, char *argv[]){
         int imgSize = server_img.total() * server_img.elemSize();
         cout << "imgSize: "<<imgSize <<endl;
         // Allocate a buffer to load the frame (there would be 2 buffers in the world of the Internet)
-        uchar buffer[imgSize];
+        char buffer[imgSize];
         
         // Copy a frame to the buffer
         memcpy(buffer, server_img.data, imgSize);
