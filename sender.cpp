@@ -306,7 +306,7 @@ int main(int argc, char *argv[])
         	if( seqNum < packet_tol ) push_packet(all_message,seqNum,packet,window_size);
         	
         	//Reset Timer
-        	time_flag -> stop_timer = true;
+        	time_flag -> stop_timer
         	pthread_create(&t, NULL, timer, time_flag);
     		pthread_tryjoin_np(t,NULL);
 
@@ -336,3 +336,4 @@ int main(int argc, char *argv[])
 
     close(sockfd); /* close fd */
 }
+

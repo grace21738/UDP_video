@@ -17,7 +17,7 @@ PTH = pthread
 all: sender receiver agent opencv
   
 sender: $(SENDER)
-	$(CXX) $(SENDER) $(INCLUDE_OPENCV) $(LINK_PTHREAD) -o $(SEN)  
+	$(CXX) $(SENDER) $(INCLUDE_OPENCV) $(LINK_PTHREAD) -o $(SEN) -g 
 receiver: $(RECEIVER)
 	$(CXX) $(RECEIVER) $(INCLUDE_OPENCV) $(LINK_PTHREAD) -Wall -o $(REC)
 agent: $(AGENT)

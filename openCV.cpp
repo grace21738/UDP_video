@@ -7,7 +7,7 @@ using namespace cv;
 int main(int argc, char *argv[]){
     Mat server_img,client_img;
     VideoCapture cap("./video.mpg");
-
+    printf("sizeof: %ld, %ld",sizeof(uchar),sizeof(char));
     
     // Get the resolution of the video
     long long int frame_num = cap.get(CV_CAP_PROP_FRAME_COUNT);
@@ -44,10 +44,11 @@ int main(int argc, char *argv[]){
         // Here, we assume that the buffer is transmitted from the server to the client
         // Copy a fream from the buffer to the container of the client
         uchar *iptr = client_img.data;
+        //cout <<"iptr: "<<sizeof(iptr)<<endl;  
         memcpy(iptr, buffer, imgSize);
       
         // show the frame 
-        imshow("Video", client_img);  
+        imshow("Video", client_img);
         
         // Press ESC on keyboard to exit
         // Notice: this part is necessary due to openCV's design.
