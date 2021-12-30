@@ -58,10 +58,10 @@ void init_message(  segment &message){
 	
 }
 
-void set_packet( segment &message, char data[MAXDATASIZE], int seqNum ,bool isLast){
+void set_packet( segment &message, char data[MAXDATASIZE], int seqNum , int length,bool isLast){
 	memset( message.data, '\0', sizeof(char)*MAXDATASIZE );
-	sprintf(message.data,"%s",data);
-	message.head.length = strlen(message.data);
+	memcpy(message.data,data,length);
+	message.head.length = length;
 	message.head.seqNumber = seqNum;
 	message.head.ack = 0;
 	if(isLast) message.head.fin = 1;
@@ -85,14 +85,13 @@ void print_debug_vector(vector<segment> v){
 		print_debug_message( v[i] );
 }
 
-void push_packet(vector<segment> &all_message,int &seqNum,char data[MAXDATASIZE],int window_size){
+void push_packet(vector<segment> &all_message,int &seqNum,char data[MAXDATASIZE],int frame_data_byte){
 
 	segment message;
-	for( int k=all_message.size(); k<window_size ; ++k ){
-    	seqNum += 1;
-    	set_packet( message, data, seqNum, false );
-    	all_message.push_back(message);
-    }
+	seqNum += 1;
+	set_packet( message, data, seqNum,frame_data_byte, false );
+	all_message.push_back(message);
+    
 
 }
 
@@ -222,23 +221,28 @@ int main(int argc, char *argv[])
     if(!frame.isContinuous()) frame = frame.clone();
 	long long frame_size = frame.total() * frame.elemSize();
 	long long int frame_buf = ceil(double(frame_size)/double(MAXDATASIZE));
-    //information[3] = frame_buf;
     long long int buf_num = 0;/*Caculate one frame size buf_num==frame_buf*/
-    long long int packet_tol = 1/*frame_amt*frame_buf+4/*information of video+1/*fin*/;
     long long int frame_num = 0;/*Caculate total frame frame_num==frame_amt*/
     long long int packet_num = 0;
+
+    int send_frame_data = 0;
+    int frame_data_byte = 0;
+    char frame_data[frame_size];
  
     //Set timer
 	pthread_t t;
 	init_timer_flag( time_flag);
 	
-
+	//memset(packet,'\0',MAXDATASIZE);
     sprintf(packet,"%lld %d %d %lld",frame_amt,width,height,frame_buf);
     seqNum += 1;
-	set_packet( message, packet, seqNum, false );
+	set_packet( message, packet, seqNum, strlen(packet) , false );
 	all_message.push_back(message);
+	//printf("message.data: %s\n",message.data);
     expect_ack_num = all_message[0].head.seqNumber;
-	
+
+	cap >> frame;
+	memcpy(frame_data, frame.data, frame_size);
 	//==========LOOP===================
     while(1) {
 
@@ -303,10 +307,32 @@ int main(int argc, char *argv[])
         	//Change expected ack num
         	if( !isFinish && message.head.fin != 1 )expect_ack_num += 1;
         	ack_buf_size += 1;  right_ack = true;
-        	if( seqNum < packet_tol ) push_packet(all_message,seqNum,packet,window_size);
+        	if( frame_num <= frame_amt ){
+        		for( int k=all_message.size(); k<window_size ; ++k ){
+        			if( buf_num < frame_buf ){
+        				buf_num += 1;
+	        			if( send_frame_data + MAXDATASIZE <= frame_size ) frame_data_byte = MAXDATASIZE;
+	        			else frame_data_byte = frame_size - send_frame_data;
+	        			memcpy( packet,frame_data + send_frame_data,frame_data_byte );
+	        			push_packet(all_message,seqNum,packet,frame_data_byte);
+	        			send_frame_data += frame_data_byte;
+	        		}
+
+
+	        		if( buf_num == frame_buf ){
+	        			buf_num = 0;send_frame_data = 0;
+	        			frame_num += 1;
+	        			if( frame_num > frame_amt ) break;
+	        			cap >> frame;
+						memcpy(frame_data, frame.data, frame_size);
+	        		}
+
+        		}
+        	}
+
         	
         	//Reset Timer
-        	time_flag -> stop_timer
+        	time_flag -> stop_timer;
         	pthread_create(&t, NULL, timer, time_flag);
     		pthread_tryjoin_np(t,NULL);
 
@@ -319,13 +345,34 @@ int main(int argc, char *argv[])
         	if( window_size>threshold ) window_size += 1;
         	else window_size *= 2;
         	ack_buf_size = 0;
-        	if( seqNum < packet_tol ) push_packet(all_message,seqNum,packet,window_size);
+        	if( frame_num <= frame_amt ){
+        		for( int k=all_message.size(); k<window_size ; ++k ){
+        			if( buf_num < frame_buf ){
+        				buf_num += 1;
+	        			if( send_frame_data + MAXDATASIZE <= frame_size ) frame_data_byte = MAXDATASIZE;
+	        			else frame_data_byte = frame_size - send_frame_data;
+	        			memcpy( packet,frame_data + send_frame_data,frame_data_byte );
+	        			push_packet(all_message,seqNum,packet,frame_data_byte);
+	        			send_frame_data += frame_data_byte;
+	        		}
+
+
+	        		if( buf_num == frame_buf ){
+	        			buf_num = 0;send_frame_data = 0;
+	        			frame_num += 1;
+	        			if( frame_num > frame_amt ) break;
+	        			cap >> frame;
+						memcpy(frame_data, frame.data, frame_size);
+	        		}
+
+        		}
+        	}
         }
 
         //FINISHED Need set finish
-        if( packet_tol == message.head.ackNumber){
+        if( frame_num > frame_amt){
         	isFinish = true; seqNum += 1; ack_buf_size = 0;
-	        set_packet( message, 0, seqNum ,true);
+	        set_packet( message, 0, seqNum ,1,true);
 	        all_message.push_back(message);
         }
        

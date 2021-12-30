@@ -125,7 +125,7 @@ int main(int argc, char *argv[])
                 message.head.ack = 1;
                 if( message.head.fin!=1 ) expect_seqNumber += 1;
                 //print_debug_message( message );
-                /*
+                
                 if( message.head.fin == 1 )
                     cout << "recv\t" <<"fin"<<endl;
                 else
@@ -133,6 +133,7 @@ int main(int argc, char *argv[])
                 
                 if( message.head.seqNumber == 1 ){
                     char *token;
+                    printf("packet %s\n",message.data);
                     token = strtok(message.data," ");
                     while( token != NULL ){
                         if( info_num == 0 ) frame_amt = atoll(token);
@@ -142,6 +143,11 @@ int main(int argc, char *argv[])
                         info_num ++;
                         token = strtok(NULL, " ");
                     }
+                    /*
+                    cout<< "Hole frame amt: "<<frame_amt<<endl;
+                    cout<< "Width: "<<width<<endl;
+                    cout<< "Height: "<<height<<endl;
+                    cout<< "One frame packet num: "<<frame_buf<<endl;*/
 
                     frame = Mat::zeros(height, width, CV_8UC3);
                     
@@ -162,7 +168,7 @@ int main(int argc, char *argv[])
                     //cout<<"tmp size: "<< tmp.size() << endl;
                     //cout<<"buf_num: "<< buf_num << endl;
                     if( buf_num > frame_buf ) cout << "drop\t" <<"data\t" <<"#"<<message.head.seqNumber<<endl;
-                }*/
+                }
             }
 
             //lost packet 
@@ -171,7 +177,7 @@ int main(int argc, char *argv[])
                 message.head.ack = 1;
                 cout << "drop\t" <<"data\t" <<"#"<<message.head.seqNumber<<endl;
             }
-/*
+
             if( buf_num == frame_buf ){
                 print_debug_string( frame_data,buf_num,frame_num );
                 cout << "flush"<<endl;
@@ -185,10 +191,10 @@ int main(int argc, char *argv[])
                 memcpy(iptr, frame_data.c_str(), frame_data.size());
                 frame_data.clear();
                 cout <<"iptr: "<<sizeof(iptr)<<endl;
-            }*/
-            /*
+            }
+            
             if( message.head.fin == 1 ) cout << "send\t" <<"finack\t"<<endl;
-            else cout << "send\t" <<"ack\t" <<"#"<<message.head.ackNumber<<endl;*/
+            else cout << "send\t" <<"ack\t" <<"#"<<message.head.ackNumber<<endl;
             if( message.head.seqNumber == 1 )cout << "flush"<<endl;
            // if( frame_num >= 1 )imshow("Video", frame);
             //cout << "You got a message (" <<message.data<<")  from "<< inet_ntoa(agent.sin_addr)<<endl; /* prints client's IP */
@@ -203,7 +209,7 @@ int main(int argc, char *argv[])
 
         if( message.head.fin==1 && frame_num == frame_amt ){
             //cout<<"expect_ack_num <= message.head.ackNumber"<<expect_seqNumber <<" "<<message.head.seqNumber <<endl;
-            //destroyWindow("Video");
+            destroyWindow("Video");
             break;
         }
 
@@ -213,7 +219,7 @@ int main(int argc, char *argv[])
     cout<< "Hole frame amt: "<<frame_amt<<endl;
     cout<< "Width: "<<width<<endl;
     cout<< "Height: "<<height<<endl;
-    cout<< "One frame packet num: "<<frame_buf<<endl;*/
-    
+    cout<< "One frame packet num: "<<frame_buf<<endl;
+    */
     close(sockfd); /* close listenfd */ 
 }
