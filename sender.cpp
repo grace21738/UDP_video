@@ -103,7 +103,7 @@ void *timer( void *main_timer_flag){
 
 	Timer_flag *time_flag;
 	time_flag = (Timer_flag *)main_timer_flag;
-	long long int msec = 0, trigger = 5000; /* 10ms */
+	long long int msec = 0, trigger = 1000; /* 10ms */
 	clock_t before = clock()/100000;
 	time_flag -> stop_timer = false;
 	//cout<<"NEW THREAD"<<endl;
@@ -169,21 +169,22 @@ int main(int argc, char *argv[])
     
     /* this is used because our program will need two argument (IP address and a message */
     
-    if (argc != 3,argc != 4) {
-        fprintf(stderr,"Usage: %s <sender port> <agent port>\n", argv[0]);
+    if (argc != 4 && argc != 5) {
+        fprintf(stderr,"Usage: %s <video name> <sender port> <agent port>\n", argv[0]);
         fprintf(stderr, "Example: ./sender 8889 1234\n");
         exit(1);
     }
-    else if(argc == 4) {
-        frame_rate = atoll(argv[3]);
-        if( frame_rate> 100 && frame_rate< 1 ){
-        	fprintf(stderr,"Usage: %s <sender port> <agent port>\n", argv[0]);
-        	fprintf(stderr, "Example: ./sender 8889 1234\n");
+    else if(argc == 5) {
+        frame_rate = atoll(argv[4]);
+        if( frame_rate> 200 && frame_rate< 1 ){
+        	fprintf(stderr,"Usage: %s <video name> <sender port> <agent port> <frame rate>\n", argv[0]);
+        	fprintf(stderr,"<frame rate> should be in range of 1~200.\n");
+        	fprintf(stderr, "Example: ./sender video.mpg 8889 1234 3\n");
         	exit(1);
         }
     }
     
-    
+    memcpy(file_name,argv[1],strlen(argv[1]));
     if ((sockfd=socket(AF_INET, SOCK_DGRAM, 0))==-1){ // calls socket()
         printf("socket() error\n");
         exit(1);
@@ -193,7 +194,7 @@ int main(int argc, char *argv[])
     setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
     
     bzero(&server,sizeof(server));
-    int port = atoi(argv[1]);
+    int port = atoi(argv[2]);
     server.sin_family = AF_INET;
     server.sin_port = htons(port); /* htons() is needed again */
     server.sin_addr.s_addr = htonl(INADDR_ANY);
@@ -206,7 +207,7 @@ int main(int argc, char *argv[])
     }
 
     agent.sin_family = AF_INET;
-    port = atoi(argv[2]);
+    port = atoi(argv[3]);
     agent.sin_port = htons(port);
     agent.sin_addr.s_addr = inet_addr(IP_ADDR);
     memset(agent.sin_zero, '\0', sizeof(agent.sin_zero));
@@ -280,7 +281,7 @@ int main(int argc, char *argv[])
 	   			{
 	   				time_out_num = all_message[j].head.seqNumber;
 	   				pthread_create(&t, NULL, timer, time_flag);
-	    			pthread_tryjoin_np(t,NULL);
+	    			pthread_detach(t);
 	   			}
 	   			print_send_message( all_message[j].head.seqNumber,isFinish,  time_flag->isTimeOut,window_size,resnd_seq);
 	        	sendto(sockfd,&all_message[j],sizeof(all_message[j]),0,(struct sockaddr *)&agent,len);
@@ -293,6 +294,8 @@ int main(int argc, char *argv[])
 	        time_flag -> isTimeOut = false;
 	    }
 	//===========Transmit and RETRANSMIT==============
+	    //cout <<"all_message.size(): "<<all_message.size()<<endl;
+	    //cout <<"all_message.size(): "<<all_message.size()<<endl;
 	//****Settings of recvfrom****
 	  	fd_set readfds;
     	fcntl(sockfd,F_SETFL, O_NONBLOCK);
@@ -305,6 +308,7 @@ int main(int argc, char *argv[])
 	    tv.tv_usec = usec;
 	    
 	    int rv = select(sockfd+1, &readfds, NULL,NULL,&tv);
+	    //cout <<"BBBBBB"<<endl;
 	    if( FD_ISSET(sockfd, &readfds) ){
 	    	
 	        if ((numbytes=recvfrom(sockfd,&message,sizeof(message),0,(struct sockaddr *)&agent,&len)) == -1){ 
@@ -318,7 +322,6 @@ int main(int argc, char *argv[])
 	        	cout << "recv\t" <<"ack\t\t" <<"#"<<message.head.ackNumber<<endl;
 	    }
 	//========Settings of recvfrom===========
-       
     //********Receiver get expected packet********
         if( expect_ack_num <= message.head.ackNumber){
 
@@ -356,9 +359,15 @@ int main(int argc, char *argv[])
         	//Reset Timer
 	        time_flag -> stop_timer = true;
         	if( all_message.size()!=0 ){
+        		//pthread_cancel(t);
         		time_out_num = message.head.ackNumber + 1;
-	        	pthread_create(&t, NULL, timer, time_flag);
-	    		pthread_tryjoin_np(t,NULL);
+        		//cout<<"message.head.ackNumber: "<<time_out_num<<endl;
+        		
+	        	if( pthread_create(&t, NULL, timer, time_flag)!=0){
+	        		perror("Error: pthread_create\n");
+	        	}
+	    		pthread_detach(t); 
+	    		//cout<<"CCCCCCC"<<time_out_num<<endl;
 	    	}
 	    	if( resnd_seq.size()==0 )isRetransmit = false;
         }
@@ -366,7 +375,6 @@ int main(int argc, char *argv[])
         	isRetransmit = true;
         }
     //========Receiver get expected packet=========
-        
 
         //Whether set high window size
         if( window_size == ack_buf_size ){
@@ -397,7 +405,6 @@ int main(int argc, char *argv[])
         		}
         	}
         }
-
         //FINISHED Need set finish
         if( !isFinish && frame_num > frame_amt && all_message.size()==0){
         	time_flag -> stop_timer = true;
@@ -406,7 +413,6 @@ int main(int argc, char *argv[])
 	        set_packet( message, "fin", seqNum ,4,true);
 	        all_message.push_back(message);
         }
-       
 
         if( all_message.size()==0 && isFinish  &&  expect_ack_num == message.head.ackNumber){
         	//cout << "expect_ack_num: " << expect_ack_num<<endl;

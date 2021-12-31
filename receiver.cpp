@@ -132,7 +132,7 @@ int main(int argc, char *argv[])
                 
                 if( message.head.seqNumber == 1 ){
                     char *token;
-                    printf("packet %s\n",message.data);
+                    //printf("packet %s\n",message.data);
                     token = strtok(message.data," ");
                     while( token != NULL ){
                         if( info_num == 0 ) frame_amt = atoll(token);
@@ -181,7 +181,7 @@ int main(int argc, char *argv[])
             sendto(sockfd,&message,num,0,(struct sockaddr *)&agent,sin_size);
             
             if( frame_num >= 1 ){
-                cout <<"frame_num: "<<frame_num<<endl;
+                //cout <<"frame_num: "<<frame_num<<endl;
                 //cout << "flush"<<endl;
                 imshow("Video", frame);  
                 waitKey(10);
