@@ -15,11 +15,13 @@
    $ make
    ```
 
-2.  **優先執行agent**，執行命令如下 :
+2. **優先執行agent**，執行命令如下 :
 
    ```
    $ ./agent <sender IP> <recv IP> <sender port> <agent port> <recv port> <loss_rate>
    ```
+
+   >  Example: 	./agent 127.0.0.1 127.0.0.1 7777 1234 8888 0.001
 
 3. **再執行receiver** ，執行命令如下 :
 
@@ -27,7 +29,9 @@
    $ ./receiver <recv port> <agent port>
    ```
 
-4.  ==**最後執行sender**，執行命令如下 :==
+   > Example: 	./receiver 8888 1234
+
+4.  **最後執行sender**，執行命令如下 :
 
    > 由於影片播放的速度非常慢(在loss rate = 0的情況下，電腦上實測大概半小時 100 frame )，若想要加快速度播放，則可以利用<frame rate>減少影片播放時間。若frame rate = 3 ，則frame會是每三幀取一幀，也就是原本1200 frame現在只取400 frame。
    >
@@ -36,6 +40,8 @@
    ```
    $ ./sender <video name> <sender port> <agent port> <frame rate>
    ```
+   
+   >  Example: 	./sender video.mpg 7777 1234 10
 
 ### 注意事項
 
