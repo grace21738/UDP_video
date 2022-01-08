@@ -2,12 +2,14 @@
 
 > ntnu40771107H 資工四 簡郁宸
 
-### 環境
+## 執行
+
+### + 環境
 
 + Ubuntu 20.04 x64
 + OpenCV 3.4.15
 
-### 執行方式
+### + 執行方式
 
 1. 輸入make 
 
@@ -43,17 +45,45 @@
    
    >  Example: 	./sender video.mpg 7777 1234 10
 
-### 注意事項
+### + 注意事項
 
 + **播放的影片需和sender.exe放在同個目錄**
-+ 若**傳送sequence number為1 的packet 被drop掉**，且大於1的sequence number packet receiver有收到，則receiver會**回傳ack 0**
-+ timer設定為1秒，若timeout則 threshold 為window_size的一半，但不小於1
++ timer設定為1秒，若timeout則 threshold 為window_size的一半，但不小於1，且window_size=1。
 
-### receiver buffer設置
 
-+ 一開始的receiver一開始的buffer為4，主要傳送video 基本資訊
 
-  | 總共多少frame | video width | video height | 一個frame多少bytes |
-  | ------------- | ----------- | ------------ | ------------------ |
+## Flow chart
 
-+ 後面設置的buffer則為 ((一個frame多少bytes)/1000)
+### Sender
+
+<img src="C:\Users\grace\Desktop\課程\四上課程\計網\hw03\sender.png" alt="sender" style="zoom:67%;" />
+
+#### 說明
+
++ window_size由一開始，使用vector儲存frame的小packet檔案，每收到期待的seqNum的ack時，vector裡收到的packet會被清掉，並且push進packet。
++ 當成功收到期待的seqNum時，window_size 增加，並且塞入packet至vector直到vector裡的packet數量為window_size為止。
++ 為了不讓sender被rcvfrom() block 住，使用select() 確認有東西傳送過來，再呼叫rcvfrom()。
++ 傳送一次最大的packet 為1000 byte。
++ Timer使用pthread實現，若時間到時會回傳一個time_out signal。
+
+
+
+### Agent
+
+<img src="C:\Users\grace\Desktop\課程\四上課程\計網\hw03\agent.png" alt="agent" style="zoom: 80%;" />
+
+#### 說明
+
++ 設置data loss並且以random的方式控制是否丟掉sender的packet。
++ 從receiver收到的Ack一律pass 給sender。
++ 若收到finish packet (finish ack)，則會直接pass給receiver ( sender )。
+
+### Receiver
+
+<img src="C:\Users\grace\Desktop\課程\四上課程\計網\hw03\receiver.png" alt="receiver" style="zoom:67%;" />
+
+#### 說明
+
++ 第一個buffer size為1，主要接收video的基本資訊( 總frame數、影片長寬、一個frame需要多少packet傳送 )。
++ 第二個buffer size則為一個frame的大小。
++ 每當buffer滿時播出一個frame。
