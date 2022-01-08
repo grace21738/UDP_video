@@ -155,10 +155,12 @@ int main(int argc, char *argv[])
     struct sockaddr_in server,agent; /* server's address information */
     int expect_ack_num =  0;
     int seqNum = 0;
+    int last_num = 0;
     int threshold = 2;
     int ack_buf_size = 0;
     bool right_ack = true;
     bool isFinish = false;
+    bool isLast = false;
     int time_out_num = 0;
     long long int frame_rate = 1;
     queue<int> resnd_seq ;
@@ -176,7 +178,7 @@ int main(int argc, char *argv[])
     }
     else if(argc == 5) {
         frame_rate = atoll(argv[4]);
-        if( frame_rate> 200 && frame_rate< 1 ){
+        if( frame_rate> 200 || frame_rate< 1 ){
         	fprintf(stderr,"Usage: %s <video name> <sender port> <agent port> <frame rate>\n", argv[0]);
         	fprintf(stderr,"<frame rate> should be in range of 1~200.\n");
         	fprintf(stderr, "Example: ./sender video.mpg 8889 1234 3\n");
@@ -261,6 +263,7 @@ int main(int argc, char *argv[])
 
 	cap >> frame;
 	memcpy(frame_data, frame.data, frame_size);
+	right_ack = true;
 	//==========LOOP===================
     while(1) {
 
@@ -279,14 +282,14 @@ int main(int argc, char *argv[])
 	   			//Set Timer
 	   			if( j==0 ) 
 	   			{
-	   				time_out_num = all_message[j].head.seqNumber;
+	   				//time_out_num = all_message[j].head.seqNumber;
 	   				pthread_create(&t, NULL, timer, time_flag);
 	    			pthread_detach(t);
 	   			}
 	   			print_send_message( all_message[j].head.seqNumber,isFinish,  time_flag->isTimeOut,window_size,resnd_seq);
 	        	sendto(sockfd,&all_message[j],sizeof(all_message[j]),0,(struct sockaddr *)&agent,len);
-	        	if( time_flag->isTimeOut == false && ! isRetransmit)resnd_seq.push(all_message[j].head.seqNumber);
-	        	if( isRetransmit && all_message[j].head.seqNumber>resnd_seq.back() ) resnd_seq.push(all_message[j].head.seqNumber);
+	        	if( right_ack == true)resnd_seq.push(all_message[j].head.seqNumber);
+	        	//if( isRetransmit && all_message[j].head.seqNumber>resnd_seq.back() ) resnd_seq.push(all_message[j].head.seqNumber);
 	        	//if( isRetransmit ) resnd_seq.pop();
 	        }
 
@@ -332,7 +335,7 @@ int main(int argc, char *argv[])
         	if(resnd_seq.size()>0)resnd_seq.pop();
         	//Change expected ack num
         	if( !isFinish && message.head.fin != 1 )expect_ack_num = message.head.ackNumber + 1;
-        	ack_buf_size += 1;  right_ack = true;
+        	ack_buf_size += 1;  //right_ack = true;
         	if( frame_num <= frame_amt ){
         		for( int k=all_message.size(); k<window_size ; ++k ){
         			if( buf_num < frame_buf ){
@@ -348,28 +351,35 @@ int main(int argc, char *argv[])
 	        		if( buf_num == frame_buf ){
 	        			buf_num = 0;send_frame_data = 0;
 	        			frame_num += 1;
-	        			if( frame_num > frame_amt ) break;
+	        			if( frame_num > frame_amt ) { last_num = seqNum;break;}
 	        			for( long long int s = 0; s<frame_rate; ++s) cap >> frame;
 						memcpy(frame_data, frame.data, frame_size);
 	        		}
 
         		}
-        		//cout << "frame_num: " << frame_num<<endl;
+        		
         	}
         	//Reset Timer
 	        time_flag -> stop_timer = true;
         	if( all_message.size()!=0 ){
         		//pthread_cancel(t);
-        		time_out_num = message.head.ackNumber + 1;
-        		//cout<<"message.head.ackNumber: "<<time_out_num<<endl;
+        		//time_out_num = message.head.ackNumber + 1;
         		
 	        	if( pthread_create(&t, NULL, timer, time_flag)!=0){
 	        		perror("Error: pthread_create\n");
 	        	}
 	    		pthread_detach(t); 
-	    		//cout<<"CCCCCCC"<<time_out_num<<endl;
 	    	}
 	    	if( resnd_seq.size()==0 )isRetransmit = false;
+	    	if( !isLast ){
+        		segment tmp_mes;
+		    	tmp_mes = all_message[window_size-1];
+			    sendto(sockfd,&tmp_mes,sizeof(tmp_mes),0,(struct sockaddr *)&agent,len);
+		       	print_send_message( tmp_mes.head.seqNumber,isFinish,  time_flag->isTimeOut,window_size,resnd_seq);
+		        if( resnd_seq.size() == 0 || resnd_seq.back()<tmp_mes.head.seqNumber)resnd_seq.push(tmp_mes.head.seqNumber);
+    			if( last_num==tmp_mes.head.seqNumber ) isLast = true;
+    		}
+
         }
         else{
         	isRetransmit = true;
@@ -378,8 +388,9 @@ int main(int argc, char *argv[])
 
         //Whether set high window size
         if( window_size == ack_buf_size ){
+        	int pre_window_size = window_size;
         	//Change window size
-        	if( window_size>threshold ) window_size += 1;
+        	if( window_size >= threshold ) window_size += 1;
         	else window_size *= 2;
         	ack_buf_size = 0;
         	if( frame_num <= frame_amt ){
@@ -396,20 +407,32 @@ int main(int argc, char *argv[])
 
 	        		if( buf_num == frame_buf ){
 	        			buf_num = 0;send_frame_data = 0;
-	        			frame_num += 1;
-	        			if( frame_num > frame_amt )break;
+	        			frame_num += 1; 
+	        			if( frame_num > frame_amt ){ last_num = seqNum;break;}
 	        			for( long long int s = 0; s<frame_rate; ++s) cap >> frame;
 						memcpy(frame_data, frame.data, frame_size);
 	        		}
 
         		}
         	}
+        	if( !isLast ){
+        		for( int k=pre_window_size; k<all_message.size()&&k<window_size; ++k ){
+        		
+	        		sendto(sockfd,&all_message[k],sizeof(all_message[k]),0,(struct sockaddr *)&agent,len);
+		        	//cout << "WIDOW: send\t" ;
+		        	print_send_message( all_message[k].head.seqNumber,isFinish,  time_flag->isTimeOut,window_size,resnd_seq);
+		        	if( resnd_seq.size() == 0 ||resnd_seq.back()<all_message[k].head.seqNumber)resnd_seq.push(all_message[k].head.seqNumber);
+	        		if( last_num==all_message[k].head.seqNumber ) isLast = true;
+	        	}
+	        }
+        	
         }
         //FINISHED Need set finish
         if( !isFinish && frame_num > frame_amt && all_message.size()==0){
         	time_flag -> stop_timer = true;
         	isFinish = true; seqNum += 1; ack_buf_size = 0;
-        	//cout << "seqNum: " << seqNum<<endl;
+        	//cout << "FINISH" <<endl;
+        	right_ack = true;
 	        set_packet( message, "fin", seqNum ,4,true);
 	        all_message.push_back(message);
         }
