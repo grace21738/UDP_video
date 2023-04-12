@@ -56,7 +56,7 @@
 
 ### Sender
 
-<img src="C:\Users\grace\Desktop\課程\四上課程\計網\hw03\sender.png" alt="sender" style="zoom:67%;" />
+<img src=".\sender.png" alt="sender" style="zoom:67%;" />
 
 #### 說明
 
@@ -70,7 +70,7 @@
 
 ### Agent
 
-<img src="C:\Users\grace\Desktop\課程\四上課程\計網\hw03\agent.png" alt="agent" style="zoom: 80%;" />
+<img src=".\agent.png" alt="agent" style="zoom: 80%;" />
 
 #### 說明
 
